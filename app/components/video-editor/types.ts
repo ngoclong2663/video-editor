@@ -13,6 +13,8 @@ export type Clip = {
 
 export type OverlayType = "text" | "rect" | "circle" | "line";
 
+export type ExportResolution = "source" | "720p" | "1080p";
+
 export type Overlay = {
     id: string;
     type: OverlayType;
