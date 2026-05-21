@@ -1,8 +1,29 @@
 "use client";
 
-import { List, arrayMove } from "react-movable";
+import * as React from "react";
+import { List } from "react-movable";
 import { Trash2 } from "lucide-react";
 import type { Clip } from "../types";
+
+function ClipThumbnail({ clip }: { clip: Clip }) {
+    const videoRef = React.useRef<HTMLVideoElement>(null);
+    const handleMetadata = () => {
+        if (videoRef.current) {
+            videoRef.current.currentTime = clip.start + (clip.end - clip.start) * 0.1;
+        }
+    };
+    return (
+        <video
+            ref={videoRef}
+            src={clip.url}
+            preload="metadata"
+            muted
+            playsInline
+            onLoadedMetadata={handleMetadata}
+            className="h-full w-full object-cover"
+        />
+    );
+}
 
 type Props = {
     clips: Clip[];
@@ -21,9 +42,7 @@ const ClipsList = ({ clips, selectedClipId, onSelect, onDelete, onReorder }: Pro
         <div className="space-y-2 rounded-xl border border-white/5 bg-[#0c0f14] p-2">
             <List
                 values={clips}
-                onChange={({ oldIndex, newIndex }) =>
-                    onReorder(oldIndex, newIndex)
-                }
+                onChange={({ oldIndex, newIndex }) => onReorder(oldIndex, newIndex)}
                 renderList={({ children, props }) => (
                     <div {...props} className="space-y-2">
                         {children}
@@ -33,29 +52,42 @@ const ClipsList = ({ clips, selectedClipId, onSelect, onDelete, onReorder }: Pro
                     <div
                         key={key}
                         {...itemProps}
-                        className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs transition ${
+                        className={`group relative overflow-hidden rounded-xl border transition ${
                             isDragged
                                 ? "border-emerald-400/60 bg-emerald-400/10"
                                 : value.id === selectedClipId
-                                  ? "border-emerald-400/40 bg-emerald-400/5"
-                                  : "border-white/10 bg-[#121821]"
+                                  ? "border-emerald-400/40"
+                                  : "border-white/10"
                         }`}
                         onClick={() => onSelect(value.id)}
                     >
-                        <div className="min-w-0 flex-1">
-                            <p className="truncate font-medium text-white">{value.name}</p>
-                            <p className="text-[0.7rem] text-slate-500">
-                                {Math.max(0, value.end - value.start).toFixed(2)}s
-                            </p>
+                        {/* Video thumbnail */}
+                        <div className="h-[72px] w-full bg-black">
+                            <ClipThumbnail clip={value} />
                         </div>
-                        <button
-                            type="button"
-                            className="shrink-0 rounded p-0.5 text-slate-500 hover:bg-rose-500/20 hover:text-rose-400"
-                            onClick={(e) => { e.stopPropagation(); onDelete(value.id); }}
-                            title="Delete clip"
-                        >
-                            <Trash2 className="size-3" />
-                        </button>
+
+                        {/* Overlay info bar */}
+                        <div className="flex items-center justify-between bg-black/60 px-2 py-1">
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-[0.7rem] font-medium text-white">
+                                    {value.name}
+                                </p>
+                                <p className="text-[0.6rem] text-slate-400">
+                                    {Math.max(0, value.end - value.start).toFixed(2)}s
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                className="ml-2 shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition hover:bg-rose-500/20 hover:text-rose-400 group-hover:opacity-100"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDelete(value.id);
+                                }}
+                                title="Delete clip"
+                            >
+                                <Trash2 className="size-3" />
+                            </button>
+                        </div>
                     </div>
                 )}
             />

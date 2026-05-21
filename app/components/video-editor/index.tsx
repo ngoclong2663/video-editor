@@ -119,9 +119,9 @@ const VideoEditor = () => {
 
     const handleAddOverlay = React.useCallback(
         (type: OverlayType) => {
-            addOverlay(type, totalDuration);
+            addOverlay(type, totalDuration, timelineTime);
         },
-        [addOverlay, totalDuration],
+        [addOverlay, totalDuration, timelineTime],
     );
 
     const handleOverlayUpdate = React.useCallback(
@@ -231,6 +231,12 @@ const VideoEditor = () => {
                             setClips((prev) => arrayMove(prev, oldIndex, newIndex))
                         }
                         onOverlaySelect={setSelectedOverlayId}
+                        onOverlayMove={(id, start, end) =>
+                            updateOverlay(id, { startTime: start, endTime: end })
+                        }
+                        onOverlayReorder={(oldIndex, newIndex) =>
+                            setOverlays((prev) => arrayMove(prev, oldIndex, newIndex))
+                        }
                         onSplitAtPlayhead={() => splitAtPlayhead(timelineTime)}
                         onTimelineSeek={handleTimelineSeek}
                         onZoomIn={zoomIn}
