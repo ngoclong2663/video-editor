@@ -22,8 +22,11 @@ export function useOverlayAction() {
         [overlays, selectedOverlayId],
     );
 
-    // totalDuration is passed as an argument to set the initial endTime without a hook dep
-    const addOverlay = React.useCallback((type: OverlayType, totalDuration: number) => {
+    // totalDuration and timelineTime are passed as arguments to avoid hook dependencies
+    const addOverlay = React.useCallback((type: OverlayType, totalDuration: number, timelineTime: number = 0) => {
+        const endTime = totalDuration > 0
+            ? Math.min(timelineTime + 10, totalDuration)
+            : timelineTime + 10;
         const overlay: Overlay = {
             id: createId(),
             type,
@@ -37,8 +40,8 @@ export function useOverlayAction() {
             strokeColor: "#f97316",
             strokeWidth: type === "text" ? 0 : 3,
             fontSize: 28,
-            startTime: 0,
-            endTime: Math.max(1, totalDuration || 5),
+            startTime: timelineTime,
+            endTime: Math.max(endTime, timelineTime + 1),
         };
         setOverlays((prev) => [...prev, overlay]);
         setSelectedOverlayId(overlay.id);

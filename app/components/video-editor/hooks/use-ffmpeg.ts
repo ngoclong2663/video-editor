@@ -38,10 +38,15 @@ export function useFfmpeg(
 
             const base = `${location.origin}/ffmpeg`;
 
+            // totalOps = one normalisation pass per clip + one final encode pass
+            const totalOps = clips.length + 1;
+            let completedOps = 0;
+
             const ffmpeg = new FFmpeg();
             ffmpeg.on("log", ({ message }) => console.log("[ffmpeg log]", message));
             ffmpeg.on("progress", ({ progress }) => {
-                setExportProgress(Math.min(100, Math.round(progress * 100)));
+                const overall = (completedOps + Math.min(progress, 1)) / totalOps;
+                setExportProgress(Math.min(100, Math.round(overall * 100)));
             });
 
             const coreURL = await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript");
@@ -69,7 +74,6 @@ export function useFfmpeg(
                 const clip = clips[i];
                 const src = fileToSrc.get(clip.file)!;
                 const len = clip.end - clip.start;
-                setExportProgress(0);
                 await ffmpeg.exec([
                     "-ss", `${clip.start}`,
                     "-t",  `${len}`,
@@ -82,6 +86,7 @@ export function useFfmpeg(
                     "-c:a", "aac",
                     `input-${i}.mp4`,
                 ]);
+                completedOps += 1;
             }
 
             // Free large source files from WASM heap immediately to avoid OOM.
