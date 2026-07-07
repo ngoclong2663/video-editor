@@ -281,6 +281,35 @@ Chronological record of every significant change made during this debugging sess
 
 **Result:** `encode+readback` dropped from ~8 ms to ~0.2 ms per frame (~40× improvement). For 33,841 frames that saves ~260 s of wall time.
 
+### v8 — Cross-clip audio timestamp continuity (`audioClipOutputTs`)
+
+**Problem:** On a 6-clip export, clip 3's audio failed at packet 0 with:
+```
+Timestamps cannot be smaller than the largest timestamp of the previous GOP.
+Got 424.824399s, but largest timestamp is 425.093566s.
+```
+Clip 2's Opus transcode ended at 425.093 s due to accumulated frame-boundary padding (~21 ms/chunk × N chunks ≈ 269 ms overshoot). `timeOffset` (video-based) after clip 2 was only 424.824 s, so clip 3's audio started at `timeOffset` — before the muxer's last seen audio timestamp.
+
+**Root cause:** `timeOffset` advances by the clip's *video* duration, which is exact. Opus encoding pads partial frames to 1024-sample boundaries, causing each clip's audio to end *slightly later* than `timeOffset`. The drift accumulates across clips.
+
+**Fix:** Added `audioClipOutputTs` (initialised to 0 before the clip loop) to track the actual end of the last audio packet across clip boundaries.
+
+- **Passthrough path:** `passthroughAudioBase = Math.max(timeOffset, audioClipOutputTs)`. All packet timestamps placed relative to this base. After the loop: `audioClipOutputTs = lastPacketEnd`.
+- **Transcode path:** `audioOutputTs = Math.max(timeOffset, audioClipOutputTs)` at clip start. After `flushChunk()` drains: `audioClipOutputTs = audioOutputTs`.
+
+Both paths ensure the next clip's audio never starts before the previous clip's last packet ended, regardless of Opus padding accumulation.
+
+### v9 — Export loading overlay with cancel support
+
+**Change:** Added a full-screen blocking overlay that appears during export.
+
+- A fixed `z-50` overlay with `backdrop-blur-sm` covers the entire UI while `isExporting` is true, preventing any user interaction.
+- Shows a `Progress` bar (shadcn/ui), "XX% complete" counter, and clip count.
+- A "Cancel export" button calls `cancelExport()`, which sets `abortRef.current = true`.
+- The export loop checks `abortRef.current` at three points: start of each clip, every 30 video frames, and before each audio chunk flush.
+- On cancel, `ExportCancelledError` is thrown, caught silently (no error UI), and `fileWritable.abort()` discards the partial file. `setExportProgress(0)` resets the indicator.
+- `cancelExport` is returned from `useFfmpeg` and wired to the overlay button in `index.tsx`.
+
 ### v7 — Audio chunk memory fixes
 
 **Problem 1:** `resampleTo48k()` always created `new OfflineAudioContext(...)` before checking if resampling was needed, then returned early for native-48kHz audio. The context (and its 11 MB `AudioBuffer`) was never GC'd promptly → 21 chunks × 11 MB = 231 MB of leaked Web Audio memory → triggered the "network error" earlier.

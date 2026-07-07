@@ -29,6 +29,13 @@ type Transform = {
     vh: (n: number) => number;
 };
 
+class ExportCancelledError extends Error {
+    constructor() {
+        super("Export cancelled by user");
+        this.name = "ExportCancelledError";
+    }
+}
+
 export function useFfmpeg(
     clips: Clip[],
     overlays: Overlay[],
@@ -40,14 +47,20 @@ export function useFfmpeg(
     const [exportUrl, setExportUrl] = React.useState<string | null>(null);
     const [exportError, setExportError] = React.useState<string | null>(null);
     const [isExporting, setIsExporting] = React.useState(false);
+    const abortRef = React.useRef(false);
 
     const resetExport = React.useCallback(() => {
         setExportUrl(null);
         setExportError(null);
     }, []);
 
+    const cancelExport = React.useCallback(() => {
+        abortRef.current = true;
+    }, []);
+
     const handleExport = React.useCallback(async () => {
         if (clips.length === 0) return;
+        abortRef.current = false;
 
         // File System Access API is required — encoded output for long 1080p
         // clips can exceed 1 GB, which doesn't fit in browser RAM as a single
@@ -217,6 +230,7 @@ export function useFfmpeg(
                 const clipDuration = clip.end - clip.start;
                 const clipLabel = `clip ${ci + 1}/${clips.length} "${clip.name}" [${clip.start.toFixed(2)}s–${clip.end.toFixed(2)}s]`;
 
+                if (abortRef.current) throw new ExportCancelledError();
                 log(`${clipLabel} — opening video input`);
 
                 // videoInput is opened once per clip. audioInput is created per
@@ -304,6 +318,7 @@ export function useFfmpeg(
 
                         // Log breakdown every 30 frames (~1s of footage)
                         if (frameCount % 30 === 0) {
+                            if (abortRef.current) throw new ExportCancelledError();
                             const avgDecode = (
                                 msWaitDecode / frameCount
                             ).toFixed(1);
@@ -611,6 +626,7 @@ export function useFfmpeg(
                                         totalPackets++;
 
                                         if (chunkDuration >= CHUNK_SECS) {
+                                            if (abortRef.current) throw new ExportCancelledError();
                                             await flushChunk();
                                             chunksSinceReset++;
                                             if (chunksSinceReset >= RESET_DECODER_EVERY) {
@@ -671,10 +687,15 @@ export function useFfmpeg(
                 );
             }
         } catch (error) {
-            console.error("Export failed", error);
-            setExportError(
-                error instanceof Error ? error.message : "Export failed",
-            );
+            if (error instanceof ExportCancelledError) {
+                // Silent cancel — reset progress, don't surface an error.
+                setExportProgress(0);
+            } else {
+                console.error("Export failed", error);
+                setExportError(
+                    error instanceof Error ? error.message : "Export failed",
+                );
+            }
             // Discard the partial file so the user doesn't end up with junk on disk.
             if (fileWritable) {
                 try { await fileWritable.abort(); } catch { /* ignore */ }
@@ -694,6 +715,7 @@ export function useFfmpeg(
         isExporting,
         resetExport,
         handleExport,
+        cancelExport,
     };
 }
 

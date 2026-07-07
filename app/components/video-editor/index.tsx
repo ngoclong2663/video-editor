@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { arrayMove } from "react-movable";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
 import VideoEditorPreview from "./preview";
 import EditorHeader from "./components/editor-header";
@@ -72,6 +74,7 @@ const VideoEditor = () => {
         isExporting,
         resetExport,
         handleExport,
+        cancelExport,
     } = useFfmpeg(clips, overlays, previewViewport);
 
     // ── Composed handlers (cross-cutting concerns) ────────────────────────────
@@ -245,6 +248,40 @@ const VideoEditor = () => {
                     />
                 </main>
             </div>
+
+            {isExporting && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+                    <div className="flex w-96 flex-col gap-6 rounded-2xl border border-white/10 bg-[#0f131a] p-8 shadow-2xl">
+                        <div className="flex flex-col gap-1">
+                            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                                Processing
+                            </p>
+                            <h2 className="text-lg font-semibold text-white">
+                                Exporting video…
+                            </h2>
+                            <p className="text-sm text-slate-400">
+                                Writing directly to disk — do not close this tab.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <Progress value={exportProgress} className="h-1.5" />
+                            <div className="flex items-center justify-between text-xs text-slate-500">
+                                <span>{exportProgress}% complete</span>
+                                <span>{clips.length} clip{clips.length !== 1 ? "s" : ""}</span>
+                            </div>
+                        </div>
+
+                        <Button
+                            variant="outline"
+                            onClick={cancelExport}
+                            className="w-full border-white/10 text-slate-300 hover:bg-white/5 hover:text-white"
+                        >
+                            Cancel export
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
